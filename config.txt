@@ -1,0 +1,6 @@
+# OTA Config File
+VERSION=1.0.0
+DEVICE_ID=PI_UNIT_001
+UPDATE_INTERVAL=600
+SERVER_URL=https://yourapp.onrender.com
+LOG_LEVEL=INFO
