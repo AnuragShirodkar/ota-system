@@ -1,0 +1,18 @@
+{
+  "version": "1.0.0",
+  "device_id": "PI_UNIT_001",
+  "released": "2026-05-23",
+  "files": {
+    "config": "config.txt",
+    "firmware": "firmware.bin",
+    "data": "data.asc"
+  },
+  "download_base_url": "https://raw.githubusercontent.com/AnuragShirodkar/ota-system/main/files/",
+  "checksums": {
+    "config.txt": "will_add_later",
+    "firmware.bin": "will_add_later",
+    "data.asc": "will_add_later"
+  },
+  "force_update": false,
+  "description": "Initial OTA release"
+}
