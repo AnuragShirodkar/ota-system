@@ -1,30 +1,26 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_file
 import json
 import os
 from datetime import datetime
 
 app = Flask(__name__)
 
-# ── Storage folders ───────────────────────────────────
 DATA_DIR = "server_data/"
 DTC_FILE = DATA_DIR + "dtc_records.json"
 HB_FILE  = DATA_DIR + "heartbeat_records.json"
 
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# ── Helper: read JSON file ────────────────────────────
 def read_json(filepath):
     if not os.path.exists(filepath):
         return []
     with open(filepath, "r") as f:
         return json.load(f)
 
-# ── Helper: write JSON file ───────────────────────────
 def write_json(filepath, data):
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2)
 
-# ── Route: receive DTC from Pi ────────────────────────
 @app.route("/dtc", methods=["POST"])
 def receive_dtc():
     data = request.json
@@ -34,30 +30,44 @@ def receive_dtc():
     print(f"DTC received from {data['device_id']} — {data['total']} codes")
     return jsonify({"status": "received", "total": data["total"]})
 
-# ── Route: receive heartbeat from Pi ──────────────────
 @app.route("/heartbeat", methods=["POST"])
 def receive_heartbeat():
     data = request.json
     records = read_json(HB_FILE)
     records.append(data)
-    # Keep only last 100 heartbeats
     records = records[-100:]
     write_json(HB_FILE, records)
     print(f"Heartbeat from {data['device_id']} — {data['timestamp']}")
     return jsonify({"status": "ok"})
 
-# ── Route: dashboard ──────────────────────────────────
+@app.route("/upload_csv", methods=["POST"])
+def upload_csv():
+    if "file" not in request.files:
+        return jsonify({"status": "no file"}), 400
+    file = request.files["file"]
+    file.save(DATA_DIR + "dtc_history.csv")
+    print("CSV file received and saved")
+    return jsonify({"status": "saved"})
+
+@app.route("/download_csv")
+def download_csv():
+    csv_path = DATA_DIR + "dtc_history.csv"
+    if not os.path.exists(csv_path):
+        return "No CSV file available yet", 404
+    return send_file(
+        csv_path,
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="dtc_history.csv"
+    )
+
 @app.route("/")
 def dashboard():
-    dtc_records  = read_json(DTC_FILE)
-    hb_records   = read_json(HB_FILE)
-    last_hb      = hb_records[-1] if hb_records else None
-
-    # Count total DTC codes
-    total_dtc = sum(r["total"] for r in dtc_records)
-
-    # Get last 10 DTC entries
-    all_codes = []
+    dtc_records = read_json(DTC_FILE)
+    hb_records  = read_json(HB_FILE)
+    last_hb     = hb_records[-1] if hb_records else None
+    total_dtc   = sum(r["total"] for r in dtc_records)
+    all_codes   = []
     for record in dtc_records:
         for code in record["dtc_codes"]:
             code["device_id"] = record["device_id"]
@@ -76,12 +86,15 @@ def dashboard():
             .card { background:white; border-radius:8px; padding:20px;
                     margin:10px 0; box-shadow:0 2px 4px rgba(0,0,0,0.1); }
             .online  { color:green; font-weight:bold; }
-            .offline { color:red;   font-weight:bold; }
+            .offline { color:red; font-weight:bold; }
             table { width:100%; border-collapse:collapse; }
             th,td { padding:10px; border-bottom:1px solid #ddd; text-align:left; }
             th    { background:#f0f0f0; }
             .badge { padding:4px 10px; border-radius:20px; font-size:12px;
                      background:#ffeded; color:#c00; }
+            .download-btn { display:inline-block; padding:10px 20px;
+                           background:#0066cc; color:white; border-radius:6px;
+                           text-decoration:none; margin-top:10px; }
         </style>
     </head>
     <body>
@@ -103,6 +116,7 @@ def dashboard():
             <h2>DTC Summary</h2>
             <p>Total fault codes received: <b>{{ total_dtc }}</b></p>
             <p>Total upload sessions: <b>{{ dtc_records|length }}</b></p>
+            <a href="/download_csv" class="download-btn">Download DTC History CSV</a>
         </div>
 
         <div class="card">
@@ -139,6 +153,5 @@ def dashboard():
         recent_codes=recent_codes
     )
 
-# ── Run ───────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(debug=True)
